@@ -59,31 +59,25 @@ function M.search(cb, opts)
     return
   end
 
-  local ok, Job = pcall(require, "plenary.job")
-  if not ok then
-    Util.error("search requires https://github.com/nvim-lua/plenary.nvim")
-    return
-  end
-
   local args = {}
   vim.list_extend(args, Config.options.search.args)
   vim.list_extend(args, { Config.search_regex(keywords_filter(opts.keywords)), opts.cwd })
 
-  Job:new({
-    command = command,
-    args = args,
-    on_exit = vim.schedule_wrap(function(j, code)
-      if code == 2 then
-        local error = table.concat(j:stderr_result(), "\n")
-        Util.error(command .. " failed with code " .. code .. "\n" .. error)
+  vim.system(
+    { command, unpack(args) },
+    {},
+    vim.schedule_wrap(function(obj)
+      if obj.code == 2 then
+        local error = obj.stderr
+        Util.error(command .. " failed with code " .. obj.code .. "\n" .. error)
       end
-      if code == 1 and opts.disable_not_found_warnings ~= true then
+      if obj.code == 1 and opts.disable_not_found_warnings ~= true then
         Util.warn("no todos found")
       end
-      local lines = j:result()
+      local lines = vim.split(obj.stdout, "\n")
       cb(M.process(lines))
-    end),
-  }):start()
+    end)
+  )
 end
 
 local function parse_opts(opts)
